@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LiquidType</title>
+  <style>
+    body { margin:0; font-family:Arial,sans-serif; background:linear-gradient(135deg,#ff0000,#000000); color:#fff; text-align:center; }
+    .container{padding:20px}
+    input,button{padding:10px;margin:5px;border-radius:8px;border:none}
+    button{cursor:pointer}
+    .hidden{display:none}
+    .card{background:rgba(0,0,0,.4); padding:12px; border-radius:12px; margin:10px auto; max-width:420px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>LiquidType</h1>
+
+    <div id="auth" class="card">
+      <h2>Register / Login</h2>
+      <input id="username" placeholder="Username">
+      <input id="password" type="password" placeholder="Password">
+      <br>
+      <button onclick="register()">Register</button>
+      <button onclick="login()">Login</button>
+    </div>
+
+    <div id="game" class="hidden card">
+      <h2>Typing Race</h2>
+      <p id="text">Loading...</p>
+      <input id="input" oninput="checkTyping()" placeholder="Start typing...">
+      <p>Coins: <span id="coins">0</span></p>
+      <button onclick="openShop()">Shop</button>
+      <button onclick="openLeaderboard()">Leaderboard</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+
+    <div id="shop" class="hidden card">
+      <h2>Shop</h2>
+      <button onclick="buyTheme('disco')">Disco Theme (50 coins)</button>
+      <button onclick="buyTheme('gradient')">Custom Gradient (100 coins)</button>
+      <br><br>
+      <button onclick="closeShop()">Back</button>
+    </div>
+
+    <div id="leaderboard" class="hidden card">
+      <h2>Leaderboard (Top Coins)</h2>
+      <div id="leaderboardList"></div>
+      <button onclick="closeLeaderboard()">Back</button>
+    </div>
+
+    <div id="adminLogin" class="card">
+      <h3>Admin Panel</h3>
+      <input id="adminPass" type="password" placeholder="Admin Password">
+      <button onclick="adminLogin()">Enter</button>
+    </div>
+
+    <div id="admin" class="hidden card">
+      <h2>Admin Panel</h2>
+      <div id="adminUsers"></div>
+      <button onclick="logoutAdmin()">Exit</button>
+    </div>
+  </div>
+
+  <script>
+    let users = JSON.parse(localStorage.getItem('users')||'{}');
+    let currentUser = null;
+
+    function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
+    function hash(pw){ return btoa(pw); }
+
+    function register(){
+      let u=username.value, p=password.value;
+      if(!u||!p) return alert('Fill fields');
+      if(users[u]) return alert('User exists');
+      users[u]={password:hash(p), coins:0, theme:'default'};
+      saveUsers(); alert('Registered!');
+    }
+
+    function login(){
+      let u=username.value, p=password.value;
+      if(!users[u]||users[u].password!==hash(p)) return alert('Invalid login');
+      currentUser=u; showGame();
+    }
+
+    function logout(){ currentUser=null; game.classList.add('hidden'); auth.classList.remove('hidden'); }
+
+    function showGame(){ auth.classList.add('hidden'); game.classList.remove('hidden'); loadRace(); updateCoins(); }
+
+    function loadRace(){ text.innerText='The quick brown fox jumps over the lazy dog'; input.value=''; }
+
+    function checkTyping(){
+      if(input.value===text.innerText){
+        let botSpeed=Math.floor(Math.random()*36)+45;
+        let playerSpeed=60; // placeholder
+        if(playerSpeed>=botSpeed){ users[currentUser].coins+=10; alert('You won! +10 coins'); }
+        else{ alert('Bot won at '+botSpeed+' WPM'); }
+        saveUsers(); updateCoins(); loadRace();
+      }
+    }
+
+    function updateCoins(){ coins.innerText=users[currentUser].coins; }
+
+    function openShop(){ shop.classList.remove('hidden'); game.classList.add('hidden'); }
+    function closeShop(){ shop.classList.add('hidden'); game.classList.remove('hidden'); }
+
+    function buyTheme(theme){
+      let cost = theme==='disco'?50:100;
+      if(users[currentUser].coins<cost) return alert('Not enough coins');
+      users[currentUser].coins-=cost; users[currentUser].theme=theme; saveUsers();
+      if(theme==='disco'){ document.body.style.background='linear-gradient(90deg, red, blue, green, yellow)'; }
+      else{
+        let c1=prompt('Color 1:'), c2=prompt('Color 2:');
+        document.body.style.background=`linear-gradient(135deg, ${c1}, ${c2})`;
+      }
+      updateCoins();
+    }
+
+    // LEADERBOARD
+    function openLeaderboard(){
+      leaderboard.classList.remove('hidden'); game.classList.add('hidden'); renderLeaderboard();
+    }
+    function closeLeaderboard(){ leaderboard.classList.add('hidden'); game.classList.remove('hidden'); }
+
+    function renderLeaderboard(){
+      let sorted = Object.entries(users).sort((a,b)=>b[1].coins - a[1].coins);
+      leaderboardList.innerHTML='';
+      sorted.forEach((u,i)=>{
+        let div=document.createElement('div');
+        div.innerHTML = `#${i+1} <b>${u[0]}</b> - ${u[1].coins} coins`;
+        leaderboardList.appendChild(div);
+      });
+    }
+
+    function adminLogin(){
+      if(adminPass.value!=='finnshows') return alert('Wrong password');
+      admin.classList.remove('hidden'); auth.classList.add('hidden'); renderAdmin();
+    }
+
+    function renderAdmin(){
+      adminUsers.innerHTML='';
+      for(let u in users){
+        let div=document.createElement('div');
+        div.innerHTML=`<b>${u}</b> - Coins: ${users[u].coins}
+        <button onclick="giveCoins('${u}')">+10</button>
+        <button onclick="takeCoins('${u}')">-10</button>
+        <button onclick="deleteUser('${u}')">Delete</button>`;
+        adminUsers.appendChild(div);
+      }
+    }
+
+    function giveCoins(u){ users[u].coins+=10; saveUsers(); renderAdmin(); }
+    function takeCoins(u){ users[u].coins-=10; saveUsers(); renderAdmin(); }
+    function deleteUser(u){ delete users[u]; saveUsers(); renderAdmin(); }
+
+    function logoutAdmin(){ admin.classList.add('hidden'); auth.classList.remove('hidden'); }
+  </script>
+</body>
+</html>
